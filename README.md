@@ -33,24 +33,24 @@ The server exposes every method from JASP's OpenRPC spec as an MCP tool:
 
 ### Meta
 - **`ping`** — Connectivity check.
-- **`rpc.discover`** — List all registered JASP RPC methods.
+- **`rpc_discover`** — List all registered JASP RPC methods.
 
 ### Modules
-- **`modules.list`** — List loaded modules and their analyses.
+- **`modules_list`** — List loaded modules and their analyses.
 
 ### Analysis Lifecycle
-- **`analysis.create`** — Create and start an analysis.
-- **`analysis.setOptions`** — Set options on an existing analysis.
-- **`analysis.getOptions`** — Retrieve current analysis options.
-- **`analysis.results`** — Retrieve analysis results (tables, plots).
-- **`analysis.status`** — Query analysis run status.
-- **`analysis.context`** — Retrieve QML form, help text, and metadata.
+- **`analysis_create`** — Create and start an analysis.
+- **`analysis_setOptions`** — Set options on an existing analysis.
+- **`analysis_getOptions`** — Retrieve current analysis options.
+- **`analysis_results`** — Retrieve analysis results (tables, plots).
+- **`analysis_status`** — Query analysis run status.
+- **`analysis_context`** — Retrieve QML form, help text, and metadata.
 
 ### Data Management
-- **`data.load`** — Load a data file (synchronous).
-- **`data.load.async`** — Start async data load.
-- **`data.load.status`** — Poll async load job.
-- **`data.info`** — Get dataset metadata.
+- **`data_load`** — Load a data file (synchronous).
+- **`data_load_async`** — Start async data load.
+- **`data_load_status`** — Poll async load job.
+- **`data_info`** — Get dataset metadata.
 
 ## MCP Client Configuration
 
