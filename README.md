@@ -32,7 +32,8 @@ Add to `~/.config/zed/settings.json`:
 {
   "context_servers": {
     "jasp": {
-      "command": "/home/sp42/.local/bin/jasp-mcp",
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/jasp-stats/jasp-mcp", "jasp-mcp"],
       "env": {
         "JASP_RPC_URL": "http://127.0.0.1:48164/rpc"
       }
