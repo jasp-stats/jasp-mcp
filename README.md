@@ -4,6 +4,24 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that
 bridges AI assistants to [JASP](https://jasp-stats.org/) statistical software
 via JASP's JSON-RPC v2 API.
 
+## MCP Client Configuration
+
+Add to your MCP client's config (e.g., Claude Desktop):
+
+```json
+{
+  "mcpServers": {
+    "jasp": {
+      "command": "uvx",
+      "args": ["jasp-mcp"],
+      "env": {
+        "JASP_RPC_URL": "http://127.0.0.1:48164/rpc"
+      }
+    }
+  }
+}
+```
+
 ## Quick Start
 
 ```bash
@@ -51,24 +69,6 @@ The server exposes every method from JASP's OpenRPC spec as an MCP tool:
 - **`data_load_async`** — Start async data load.
 - **`data_load_status`** — Poll async load job.
 - **`data_info`** — Get dataset metadata.
-
-## MCP Client Configuration
-
-Add to your MCP client's config (e.g., Claude Desktop):
-
-```json
-{
-  "mcpServers": {
-    "jasp": {
-      "command": "uvx",
-      "args": ["jasp-mcp"],
-      "env": {
-        "JASP_RPC_URL": "http://127.0.0.1:48164/rpc"
-      }
-    }
-  }
-}
-```
 
 ## Typical Workflow
 
