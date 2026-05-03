@@ -6,14 +6,51 @@ via JASP's JSON-RPC v2 API.
 
 ## MCP Client Configuration
 
-Add to your MCP client's config (e.g., Claude Desktop):
+### Claude Desktop
+
+Add to `~/.config/Claude/claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "jasp": {
       "command": "uvx",
-      "args": ["jasp-mcp"],
+      "args": ["--from", "git+https://github.com/jasp-stats/jasp-mcp", "jasp-mcp"],
+      "env": {
+        "JASP_RPC_URL": "http://127.0.0.1:48164/rpc"
+      }
+    }
+  }
+}
+```
+
+### Zed
+
+Add to `~/.config/zed/settings.json`:
+
+```json
+{
+  "context_servers": {
+    "jasp": {
+      "command": "/home/sp42/.local/bin/jasp-mcp",
+      "env": {
+        "JASP_RPC_URL": "http://127.0.0.1:48164/rpc"
+      }
+    }
+  }
+}
+```
+
+### VS Code / Cursor / Continue
+
+Add to `.vscode/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "jasp": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/jasp-stats/jasp-mcp", "jasp-mcp"],
       "env": {
         "JASP_RPC_URL": "http://127.0.0.1:48164/rpc"
       }
@@ -26,13 +63,14 @@ Add to your MCP client's config (e.g., Claude Desktop):
 
 ```bash
 # Install and run with uvx (recommended)
-uvx jasp-mcp
+uvx --from git+https://github.com/jasp-stats/jasp-mcp jasp-mcp
 ```
 
-Or during development:
+Or clone and run locally:
 
 ```bash
-git clone <repo> && cd JASP_MCP
+git clone https://github.com/jasp-stats/jasp-mcp.git
+cd jasp-mcp
 uv run python -m jasp_mcp
 ```
 
