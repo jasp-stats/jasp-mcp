@@ -4,6 +4,9 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that
 bridges AI assistants to [JASP](https://jasp-stats.org/) statistical software
 via JASP's JSON-RPC v2 API.
 
+The server is **fully dynamic**: on startup it calls JASP's `rpc.discover` and
+registers every available method as an MCP tool. No schemas are hardcoded.
+
 ## MCP Client Configuration
 
 ### Claude Desktop
@@ -82,66 +85,100 @@ uv run python -m jasp_mcp
 | `JASP_RPC_URL` | `http://127.0.0.1:48164/rpc` | JASP JSON-RPC v2 endpoint |
 
 Make sure JASP is running with its remote RPC server enabled before starting
-the MCP server.
+the MCP server. The server polls JASP in the background — it will register
+tools automatically once JASP becomes reachable.
 
 ## Available Tools
 
-The server exposes every method from JASP's OpenRPC spec as an MCP tool:
+All JASP RPC methods are exposed as MCP tools with a `jasp_` prefix.
 
 ### Meta
-- **`ping`** — Connectivity check.
-- **`rpc_discover`** — List all registered JASP RPC methods.
 
-### Modules
-- **`modules_list`** — List loaded modules and their analyses.
-
-### Analysis Lifecycle
-- **`analysis_create`** — Create and start an analysis.
-- **`analysis_setOptions`** — Set options on an existing analysis.
-- **`analysis_getOptions`** — Retrieve current analysis options.
-- **`analysis_results`** — Retrieve analysis results (tables, plots).
-- **`analysis_status`** — Query analysis run status.
-- **`analysis_context`** — Retrieve QML form, help text, and metadata.
+- **`jasp_ping`** — Connectivity check. Returns `"pong"`.
+- **`jasp_rpc_discover`** — List all registered JASP RPC methods with full schemas.
 
 ### Data Management
-- **`data_load`** — Load a data file (synchronous).
-- **`data_load_async`** — Start async data load.
-- **`data_load_status`** — Poll async load job.
-- **`data_info`** — Get dataset metadata.
+
+- **`jasp_data_load`** — Load a CSV, SPSS, JASP, Excel, etc. file. Pass `wait=true` (default) for blocking load; pass `wait=false` for async (returns a `jobId` for polling).
+- **`jasp_data_load_status`** — Poll or block on an async data load job by `jobId`.
+- **`jasp_data_info`** — Get metadata about the currently loaded dataset (columns, types, row count).
+
+### Modules & Analyses
+
+- **`jasp_modules_list`** — List all loaded modules and their available analyses.
+- **`jasp_analyses_list`** — List all analyses currently in the workspace.
+- **`jasp_analysis_context`** — Get help text and metadata for an analysis (describes every option, its type, valid values, and allowed column types).
+- **`jasp_analysis_create`** — Create a new analysis instance. Returns the `analysisId` and default options with metadata.
+- **`jasp_analysis_getOptions`** — Retrieve the current options of an existing analysis.
+- **`jasp_analysis_run`** — Set options and run an analysis. This is the primary tool for both configuration and execution. Returns results on completion, or a `"running"` status if the timeout fires (poll with `jasp_analysis_results`).
+- **`jasp_analysis_results`** — Poll for results of a running analysis (only needed when `jasp_analysis_run` times out).
+- **`jasp_analysis_composeResults`** — Reorder, slice, and annotate an analysis's results. Insert Markdown annotations alongside result tables and plots.
 
 ## Typical Workflow
 
-1. **`jasp_data_load`** — Load a dataset into JASP. For small datasets
-   `jasp_data_load` is synchronous and returns immediately. Large datasets
-   should be loaded with `jasp_data_load_async` to avoid timeouts — poll
-   with `jasp_data_load_status` until the status is `"complete"`. Then
-   `jasp_data_info` to inspect columns and their types.
-2. **`jasp_modules_list`** — Browse available modules and analyses.
-3. **`jasp_analysis_context`** — Get the QML form and help text for a
-   specific analysis. This describes every available option, its type, valid
-   values, and allowed column types.
-4. **`jasp_analysis_create`** — Create an analysis instance. Save the
-   returned `analysisId`.
-5. **`jasp_analysis_setOptions`** — Configure the analysis. Use
-   `jasp_analysis_setOptions` with the `analysisId` and an options object.
-   The options object keys are the control names from the QML form or
-   `optionMeta`. Common option patterns:
-   - Checkboxes: `{ "wantsEffectSize": true }`
-   - Dropdowns/combo boxes: `{ "hypothesis": "groupOneGreater" }`
-   - Variable assignments: `{ "dependent": ["score"], "groupingVariable": ["group"] }`
-   - Numbers: `{ "confidenceInterval": 0.95 }`
-   Always consult `jasp_analysis_context` or the `optionMeta` from
-   `jasp_analysis_create` first.
+### 1. Load data
 
-   `jasp_analysis_setOptions` returns the updated `options` and
-   `optionMeta`. Analyse these for newly revealed controls or updated
-   valid values (some analyses show/hide options or change available
-   choices based on prior selections). Call `jasp_analysis_setOptions`
-   again with any newly surfaced options, and iterate until satisfied.
-6. **`jasp_analysis_status`** — Wait for the analysis to complete (status
-   `"complete"`).
-7. **`jasp_analysis_results`** — Retrieve tables, plots, and notes for
-   interpretation.
+Use `jasp_data_load` with a file path. For small datasets it blocks and
+returns immediately with column metadata. For large files, pass `wait=false`
+to avoid timeouts — poll with `jasp_data_load_status` until the status is
+`"complete"`. Then use `jasp_data_info` to inspect columns and their types.
+
+### 2. Discover analyses
+
+Use `jasp_modules_list` to browse available modules and analyses.
+
+### 3. Get analysis context
+
+Use `jasp_analysis_context` for the target analysis. This returns help text
+describing every available option, its type, valid values, and allowed
+column types. Always do this before configuring an unfamiliar analysis.
+
+### 4. Create the analysis
+
+Use `jasp_analysis_create` with the module and analysis name. Save the
+returned `analysisId`. The response includes default `options` and
+`optionMeta` describing the kind of each control.
+
+### 5. Configure and run
+
+Use `jasp_analysis_run` with the `analysisId` and an options object.
+This sets options and starts the analysis in one call. Common option patterns:
+
+- **Checkboxes**: `{ "wantsEffectSize": true }`
+- **Dropdowns / combos**: `{ "hypothesis": "groupOneGreater" }`
+- **Variable assignments**: `{ "dependent": ["score"], "groupingVariable": ["group"] }`
+- **Numbers**: `{ "confidenceInterval": 0.95 }`
+
+Always consult the `optionMeta` from `jasp_analysis_create`, `jasp_analysis_getOptions`,
+or `jasp_analysis_context` to know which options are available and what shape
+their values should take.
+
+`jasp_analysis_run` returns one of:
+
+| Status | Meaning |
+|--------|---------|
+| `"success"` | Analysis finished; `results` contains tables, plots, and notes. |
+| `"running"` | Timeout elapsed; poll with `jasp_analysis_results`. |
+| `"error"` | Options validation failed; check `message` for details. |
+
+Some analyses show or hide options based on prior selections. The
+`optionMeta` in the response always reflects the current state — inspect it
+for newly revealed controls and iterate with additional `jasp_analysis_run`
+calls if needed.
+
+### 6. Poll if still running
+
+If `jasp_analysis_run` returned `"running"`, poll with `jasp_analysis_results`
+(using the same `analysisId`) until the status is `"success"`.
+
+### 7. Interpret results
+
+The results object contains tables, plots, and notes. Plots include
+base64-encoded images under `"data"` keys — summarise these rather than
+including raw base64 in your response.
+
+Use `jasp_analysis_composeResults` to reorder output, insert annotations,
+or present a curated subset of results.
 
 ## License
 
