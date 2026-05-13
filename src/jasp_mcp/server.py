@@ -40,42 +40,61 @@ You are connected to JASP statistical software through this MCP server.
 
 ## Workflow for running an analysis
 
-1.  **Load data** — Use `jasp_data_load` with a file path for small datasets;
-    it is synchronous and returns immediately. Large datasets should be loaded
-    with `jasp_data_load_async` to avoid timeouts — poll with
-    `jasp_data_load_status` until the status is `"complete"`. Then
+1.  **Load data** — Use `jasp_data_load` with a file path. For small datasets,
+    pass `wait=true` (default) for a blocking call that returns column metadata.
+    For large files, pass `wait=false` to start an async load — poll with
+    `jasp_data_load_status` until the status is `"complete"`. Then use
     `jasp_data_info` to inspect columns and their types.
+
+    Both `jasp_data_load` and `jasp_data_load_status` default to a 30-second
+    timeout (`timeoutMs`). For large files, pass a higher `timeoutMs` on
+    `jasp_data_load_status` when polling so the poll doesn't fire prematurely.
 2.  **Discover analyses** — Use `jasp_modules_list` to see available modules and analyses.
 3.  **Get analysis context** — Use `jasp_analysis_context` for the target analysis. This
-    returns the QML form and help text describing every available option, its type,
-    valid values, and allowed column types.
+    returns help text describing every available option, its type, valid values,
+    and allowed column types. Always do this before configuring an unfamiliar analysis.
 4.  **Create the analysis** — Use `jasp_analysis_create` with the module and analysis name.
-    Save the returned `analysisId`.
-5.  **Configure options** — Use `jasp_analysis_setOptions` with the `analysisId` and an
-    options object. The options object keys are the control names from the QML form
-    or `optionMeta`. Common option patterns:
+    Save the returned `analysisId`. The response includes default `options` and
+    `optionMeta` describing the kind of each control.
+5.  **Configure and run** — Use `jasp_analysis_run` with the `analysisId` and an
+    options object. This sets options and runs the analysis in a single call.
+    `jasp_analysis_run` defaults to a 30-second timeout (`timeoutMs`). For
+    complex analyses (e.g. Bayesian methods, bootstrapping, large datasets),
+    pass a higher `timeoutMs` to avoid unnecessary polling. Common option patterns:
     - Checkboxes: `{ "wantsEffectSize": true }`
     - Dropdowns/combo boxes: `{ "hypothesis": "groupOneGreater" }`
     - Variable assignments: `{ "dependent": ["score"], "groupingVariable": ["group"] }`
     - Numbers: `{ "confidenceInterval": 0.95 }`
-    Always consult `jasp_analysis_context` or the `optionMeta` from `jasp_analysis_create` first.
+    Always consult the `optionMeta` from `jasp_analysis_create`,
+    `jasp_analysis_getOptions`, or `jasp_analysis_context` to know which
+    options are available and what shape their values should take.
 
-    `jasp_analysis_setOptions` returns the updated `options` and `optionMeta`.
-    Analyse these for newly revealed controls or updated valid values (some analyses
-    show/hide options or change available choices based on prior selections). Call
-    `jasp_analysis_setOptions` again with any newly surfaced options, and iterate
-    until satisfied.
-6.  **Check status** — Use `jasp_analysis_status` until the status is `"complete"`.
-7.  **Get results** — Use `jasp_analysis_results` to retrieve tables, plots, and notes.
+    `jasp_analysis_run` returns one of:
+    - `"success"` — analysis finished; the `results` field contains tables, plots, and notes.
+    - `"running"` — timeout elapsed but the analysis is still computing; poll with
+      `jasp_analysis_results` (also defaults to 30 s; pass a higher `timeoutMs` if needed).
+    - `"error"` — options validation failed; check the `message` field for details.
+
+    Some analyses show/hide options or change available choices based on prior
+    selections. The `optionMeta` in the response always reflects the current state —
+    inspect it for newly revealed controls and call `jasp_analysis_run` again with
+    any newly surfaced options, iterating until satisfied.
+6.  **Poll if running** — If step 5 returned `"running"`, poll with
+    `jasp_analysis_results` (same `analysisId`) until the status is `"success"`.
+    Do NOT call `jasp_analysis_results` if step 5 already returned `"success"` —
+    the results are already final.
+7.  **Compose output** — Use `jasp_analysis_composeResults` to reorder result
+    elements, insert Markdown annotations (use `#` for headings), or present a
+    curated subset of tables and plots.
 
 ## Important notes
 
 - Variable lists expect an array of column name strings.
-- Plot results contain base64-encoded images under `"data"` keys — you may want to
-  summarise rather than including the raw base64 in your response.
-- Strongly consider using the default for RadioButtonGroup if this choice is appropriate.
-- If an analysis returns `"fatalError"`, use `jasp_analysis_context` to review the form
-  and check that required variables are assigned and options are valid.
+- Plot results contain base64-encoded images under `"data"` keys — summarise
+  these rather than including the raw base64 in your response.
+- Strongly consider using the default for RadioButtonGroup if that choice is appropriate.
+- If an analysis returns `"fatalError"`, use `jasp_analysis_getOptions` to review the
+  current options and check that required variables are assigned and options are valid.
 """
 
 # ============================================================================
