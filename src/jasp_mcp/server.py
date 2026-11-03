@@ -190,7 +190,13 @@ async def _poll_jasp(interval: float = 2.0) -> None:
             # Health check: if JASP disappeared, clear tools and notify.
             try:
                 await _jasp.call("ping", {})
-            except (JASPClientError, OSError):
+            except JASPClientError as exc:
+                # A JSON-RPC error means JASP answered: it is busy (e.g. "Procedure call already in flight"
+                # while an analysis_run waits for results), not gone. Only transport failures clear the tools.
+                if exc.code is None:
+                    _tools = []
+                    await _notify_client()
+            except OSError:
                 _tools = []
                 await _notify_client()
         else:
